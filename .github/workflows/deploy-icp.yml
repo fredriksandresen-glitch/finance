@@ -1,0 +1,97 @@
+name: Build and Deploy to ICP
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: true
+        default: "main"
+
+concurrency:
+  group: icp-deploy
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: icp-mainnet
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: TypeCheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_ICP_CANISTER_ID: tymvd-6aaaa-aaaam-qjbza-cai
+
+      - name: Setup DFX
+        uses: dfinity/setup-dfx@main
+        with:
+          dfx-version: "0.31.0"
+
+      - name: Import DFX identity
+        env:
+          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
+          DFX_IDENTITY_NAME: github-deploy
+        run: |
+          mkdir -p "$HOME/.config/dfx/identity/$DFX_IDENTITY_NAME"
+          echo "$DFX_IDENTITY_PEM" > "$HOME/.config/dfx/identity/$DFX_IDENTITY_NAME/identity.pem"
+          chmod 600 "$HOME/.config/dfx/identity/$DFX_IDENTITY_NAME/identity.pem"
+          dfx identity use "$DFX_IDENTITY_NAME"
+          echo "Identity principal: $(dfx identity get-principal)"
+
+      - name: Deploy to ICP Mainnet
+        env:
+          DFX_IDENTITY_NAME: github-deploy
+        run: |
+          dfx deploy finance --network ic --identity "$DFX_IDENTITY_NAME"
+
+      - name: Verify deployment
+        run: |
+          CANISTER_ID="tymvd-6aaaa-aaaam-qjbza-cai"
+          STATUS=$(dfx canister status "$CANISTER_ID" --network ic --identity anonymous 2>&1 || echo "STATUS_CHECK_FAILED")
+          echo "Canister status: $STATUS"
+          echo "URL: https://$CANISTER_ID.icp0.io/"
+          echo "URL (icp.io): https://$CANISTER_ID.icp.io/"
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"✅ ICP deploy vellykket!\\nCanister: tymvd-6aaaa-aaaam-qjbza-cai\\nCommit: ${{ github.sha }}\\nBranch: ${{ github.ref_name }}\\nURL: https://tymvd-6aaaa-aaaam-qjbza-cai.icp0.io/\"}" \
+              "$SLACK_WEBHOOK_URL" || true
+          else
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"❌ ICP deploy feilet!\\nCommit: ${{ github.sha }}\\nBranch: ${{ github.ref_name }}\\nSjekk logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+              "$SLACK_WEBHOOK_URL" || true
+          fi
