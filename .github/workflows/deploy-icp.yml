@@ -59,19 +59,18 @@ jobs:
       - name: Import DFX identity
         env:
           DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
-          DFX_IDENTITY_NAME: github-deploy
         run: |
-          mkdir -p "$HOME/.config/dfx/identity/$DFX_IDENTITY_NAME"
-          echo "$DFX_IDENTITY_PEM" > "$HOME/.config/dfx/identity/$DFX_IDENTITY_NAME/identity.pem"
-          chmod 600 "$HOME/.config/dfx/identity/$DFX_IDENTITY_NAME/identity.pem"
-          dfx identity use "$DFX_IDENTITY_NAME"
+          mkdir -p "$HOME/.config/dfx/identity/default"
+          echo "$DFX_IDENTITY_PEM" > "$HOME/.config/dfx/identity/default/identity.pem"
+          chmod 600 "$HOME/.config/dfx/identity/default/identity.pem"
+          dfx identity use default
           echo "Identity principal: $(dfx identity get-principal)"
 
       - name: Deploy to ICP Mainnet
         env:
-          DFX_IDENTITY_NAME: github-deploy
+          DFX_WARNING: -mainnet_plaintext_identity
         run: |
-          dfx deploy finance --network ic --identity "$DFX_IDENTITY_NAME"
+          dfx deploy finance --network ic --identity default
 
       - name: Verify deployment
         run: |
