@@ -19,6 +19,9 @@
 
 # production
 /build
+/dist
+.dfx/
+*.local
 
 # misc
 .DS_Store

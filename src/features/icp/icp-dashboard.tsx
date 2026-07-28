@@ -9,6 +9,36 @@ import { defaultIcpPortfolio, type IcpMarketPrice, type IcpPortfolio } from "@/f
 import { ICP_CANISTER_ID } from "@/lib/icp/config";
 import { icpPortfolioService } from "@/lib/services/icp-portfolio-service";
 
+async function fetchCoinGeckoDirect(): Promise<IcpMarketPrice> {
+  const response = await fetch(
+    "https://api.coingecko.com/api/v3/simple/price?ids=internet-computer&vs_currencies=usd,nok&include_24hr_change=true&include_last_updated_at=true",
+  );
+  if (!response.ok) throw new Error(`CoinGecko svarte med ${response.status}.`);
+
+  const payload = (await response.json()) as {
+    "internet-computer"?: {
+      usd?: number;
+      nok?: number;
+      usd_24h_change?: number;
+      nok_24h_change?: number;
+      last_updated_at?: number;
+    };
+  };
+  const value = payload["internet-computer"];
+  if (!value?.usd || !value.nok || !value.last_updated_at) {
+    throw new Error("CoinGecko-responsen mangler prisdata.");
+  }
+  return {
+    usd: String(value.usd),
+    nok: String(value.nok),
+    usd24hChange: String(value.usd_24h_change ?? 0),
+    nok24hChange: String(value.nok_24h_change ?? 0),
+    lastUpdatedAt: new Date(value.last_updated_at * 1000).toISOString(),
+    fetchedAt: new Date().toISOString(),
+    source: "live",
+  };
+}
+
 export function IcpDashboard() {
   const [portfolio, setPortfolio] = useState<IcpPortfolio>(defaultIcpPortfolio);
   const [marketPrice, setMarketPrice] = useState<IcpMarketPrice | null>(null);
@@ -26,9 +56,16 @@ export function IcpDashboard() {
       setPriceLoading(true);
       setPriceError("");
       try {
-        const response = await fetch(`/api/icp-price${force ? "?refresh=1" : ""}`);
-        if (!response.ok) throw new Error((await response.json()).message ?? "Livepris er utilgjengelig.");
-        const price = (await response.json()) as IcpMarketPrice;
+        let price: IcpMarketPrice;
+        try {
+          // Prøv server-rute først (Vercel)
+          const response = await fetch(`/api/icp-price${force ? "?refresh=1" : ""}`);
+          if (!response.ok) throw new Error("Server-rute utilgjengelig.");
+          price = (await response.json()) as IcpMarketPrice;
+        } catch {
+          // Fallback: direkte CoinGecko-kall fra klienten (ICP canister)
+          price = await fetchCoinGeckoDirect();
+        }
         setMarketPrice(price);
         selectPrice(price, currency);
         await icpPortfolioService.saveLastMarketPrice(price);

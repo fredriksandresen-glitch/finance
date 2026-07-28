@@ -1,0 +1,19 @@
+[
+  {
+    "match": "*",
+    "cache": {
+      "max_age": 300
+    },
+    "headers": {
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin"
+    }
+  },
+  {
+    "match": "index.html",
+    "cache": {
+      "max_age": 0
+    }
+  }
+]

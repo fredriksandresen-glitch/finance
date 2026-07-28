@@ -1,19 +1,55 @@
+"use client";
+
+import { Suspense } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { NetWorthAreaChart } from "@/components/charts/finance-charts";
 import { Card, StatCard } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatCurrency } from "@/lib/format";
 import { portfolioService } from "@/lib/services/portfolio-service";
+import type { Portfolio, NetWorthSnapshot } from "@/lib/types";
 
-export default async function NetWorthPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: "1m" | "6m" | "1y" | "all" }>;
-}) {
-  const params = await searchParams;
-  const range = params.range ?? "1y";
-  const portfolio = await portfolioService.getPortfolio();
-  const totals = portfolioService.getTotals(portfolio);
-  const data = portfolioService.getNetWorthRange(portfolio.netWorthSnapshots, range);
+type Totals = {
+  totalAssets: number;
+  totalLiabilities: number;
+  netWorth: number;
+  monthlyIncome: number;
+  monthlyExpenses: number;
+  monthlyChange: number;
+  ytdChange: number;
+};
+
+function NetWorthContent() {
+  const searchParams = useSearchParams();
+  const range = (searchParams.get("range") as "1m" | "6m" | "1y" | "all") ?? "1y";
+
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [totals, setTotals] = useState<Totals | null>(null);
+  const [data, setData] = useState<NetWorthSnapshot[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const p = await portfolioService.getPortfolio();
+      if (!active) return;
+      setPortfolio(p);
+      setTotals(portfolioService.getTotals(p));
+      setData(portfolioService.getNetWorthRange(p.netWorthSnapshots, range));
+    }
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [range]);
+
+  if (!portfolio || !totals) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-500">
+        Laster nettoformue...
+      </div>
+    );
+  }
 
   return (
     <>
@@ -84,5 +120,13 @@ export default async function NetWorthPage({
         </div>
       </Card>
     </>
+  );
+}
+
+export default function NetWorthPage() {
+  return (
+    <Suspense fallback={<div className="flex h-64 items-center justify-center text-zinc-500">Laster nettoformue...</div>}>
+      <NetWorthContent />
+    </Suspense>
   );
 }

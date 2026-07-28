@@ -1,16 +1,57 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { AllocationPieChart, NetWorthAreaChart } from "@/components/charts/finance-charts";
 import { Card, StatCard } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
 import { portfolioService } from "@/lib/services/portfolio-service";
+import type { Portfolio, AssetWithMetrics } from "@/lib/types";
 
-export default async function DashboardPage() {
-  const portfolio = await portfolioService.getPortfolio();
-  const totals = portfolioService.getTotals(portfolio);
-  const allocation = portfolioService.getAllocation(portfolio);
-  const holdings = portfolioService.getLargestHoldings(portfolio);
-  const recent = portfolioService.getRecentActivity(portfolio);
+type RecentItem = { id: string; date: string; label: string; amount: number };
+
+type Totals = {
+  netWorth: number;
+  monthlyChange: number;
+  ytdChange: number;
+  totalAssets: number;
+  totalLiabilities: number;
+  monthlyIncome: number;
+  monthlyExpenses: number;
+};
+
+export default function DashboardPage() {
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [totals, setTotals] = useState<Totals | null>(null);
+  const [allocation, setAllocation] = useState<{ name: string; value: number }[]>([]);
+  const [holdings, setHoldings] = useState<AssetWithMetrics[]>([]);
+  const [recent, setRecent] = useState<RecentItem[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const p = await portfolioService.getPortfolio();
+      if (!active) return;
+      setPortfolio(p);
+      setTotals(portfolioService.getTotals(p));
+      setAllocation(portfolioService.getAllocation(p));
+      setHoldings(portfolioService.getLargestHoldings(p));
+      setRecent(portfolioService.getRecentActivity(p));
+    }
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!portfolio || !totals) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-500">
+        Laster dashboard...
+      </div>
+    );
+  }
 
   return (
     <>
