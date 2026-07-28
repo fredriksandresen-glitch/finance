@@ -46,6 +46,14 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatTimestamp(value: string) {
+  return new Intl.DateTimeFormat("nb-NO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Oslo",
+  }).format(new Date(value));
+}
+
 export function IcpOverview({
   portfolio,
   marketPrice,
@@ -215,12 +223,7 @@ export function IcpOverview({
               value={formatFiat(decimal(portfolio.availableIcp).mul(decimal(livePrice || "0")), currency)}
             />
             <DetailRow label="Andel av total" value={formatIcpPercent(portfolio.availableIcp, total)} />
-            <DetailRow
-              label="Sist oppdatert"
-              value={new Intl.DateTimeFormat("nb-NO", { dateStyle: "medium", timeStyle: "short" }).format(
-                new Date(portfolio.updatedAt),
-              )}
-            />
+            <DetailRow label="Sist oppdatert" value={formatTimestamp(portfolio.updatedAt)} />
           </dl>
           <button
             disabled
@@ -259,10 +262,7 @@ export function IcpOverview({
       {marketPrice ? (
         <p className="flex items-center gap-2 text-xs text-zinc-500">
           <Clock3 size={13} />
-          CoinGecko sist oppdatert{" "}
-          {new Intl.DateTimeFormat("nb-NO", { dateStyle: "medium", timeStyle: "short" }).format(
-            new Date(marketPrice.lastUpdatedAt),
-          )}
+          CoinGecko sist oppdatert {formatTimestamp(marketPrice.lastUpdatedAt)}
         </p>
       ) : null}
     </div>
