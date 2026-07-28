@@ -1,4 +1,5 @@
-import { Download, Upload } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Coins, Download, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { ICP_CANISTER_ID } from "@/lib/icp/config";
@@ -19,7 +20,10 @@ export default async function SettingsPage() {
           <div className="mt-4 grid gap-4">
             <label className="grid gap-1 text-sm">
               Standardvaluta
-              <select defaultValue={portfolio.settings.defaultCurrency} className="rounded-md border border-black/10 bg-transparent px-3 py-2 dark:border-white/10">
+              <select
+                defaultValue={portfolio.settings.defaultCurrency}
+                className="rounded-md border border-black/10 bg-transparent px-3 py-2 dark:border-white/10"
+              >
                 <option>NOK</option>
                 <option>USD</option>
                 <option>EUR</option>
@@ -29,7 +33,10 @@ export default async function SettingsPage() {
             </label>
             <label className="grid gap-1 text-sm">
               Tema
-              <select defaultValue={portfolio.settings.theme} className="rounded-md border border-black/10 bg-transparent px-3 py-2 dark:border-white/10">
+              <select
+                defaultValue={portfolio.settings.theme}
+                className="rounded-md border border-black/10 bg-transparent px-3 py-2 dark:border-white/10"
+              >
                 <option value="system">Følg system</option>
                 <option value="light">Lys modus</option>
                 <option value="dark">Mørk modus</option>
@@ -53,12 +60,15 @@ export default async function SettingsPage() {
               Importer data
             </button>
           </div>
-          <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Knappene er plassert for MVP-flyt. Filbehandling kobles til persistent lagring i neste iterasjon.</p>
+          <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+            Knappene er plassert for MVP-flyt. Filbehandling kobles til persistent lagring i neste iterasjon.
+          </p>
         </Card>
         <Card>
           <h2 className="text-xl font-semibold">Internet Identity</h2>
           <p className="mt-3 text-zinc-600 dark:text-zinc-300">
-            Tilkobling til Internet Identity er planlagt, men ikke aktivert. Ingen controller-identiteter, seed phrases eller private nøkler skal inn i repoet eller Vercel.
+            Tilkobling til Internet Identity er planlagt, men ikke aktivert. Ingen controller-identiteter, seed phrases
+            eller private nøkler skal inn i repoet eller Vercel.
           </p>
         </Card>
         <Card>
@@ -73,6 +83,14 @@ export default async function SettingsPage() {
               <dd className="font-mono">{ICP_CANISTER_ID}</dd>
             </div>
           </dl>
+          <Link
+            href="/icp"
+            className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-zinc-700 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white"
+          >
+            <Coins size={16} />
+            Åpne ICP-innstillinger
+            <ArrowRight size={15} />
+          </Link>
         </Card>
       </div>
     </>

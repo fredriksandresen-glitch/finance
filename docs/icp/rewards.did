@@ -1,0 +1,36 @@
+type IcpCurrency = variant { USD; NOK };
+type RewardCalculationMode = variant { walletForecast; rewardRate };
+type CompoundingMode = variant { none; monthly; daily };
+
+type IcpPortfolio = record {
+  availableIcp : text;
+  lockedIcp : text;
+  stakedMaturity : text;
+  annualRewardRatePercent : text;
+  walletAnnualForecastIcp : text;
+  neuronCount : nat32;
+  dissolveDelayMonths : nat32;
+  eightYearGangBonus : bool;
+  autoStakeMaturity : bool;
+  preferredCurrency : IcpCurrency;
+  customIcpPrice : text;
+  rewardCalculationMode : RewardCalculationMode;
+  compoundingMode : CompoundingMode;
+  updatedAt : text;
+};
+
+type IcpMarketPrice = record {
+  usd : text;
+  nok : text;
+  usd24hChange : text;
+  nok24hChange : text;
+  lastUpdatedAt : text;
+  fetchedAt : text;
+};
+
+service : {
+  getIcpPortfolio : () -> (opt IcpPortfolio) query;
+  updateIcpPortfolio : (IcpPortfolio) -> (IcpPortfolio);
+  getLastMarketPrice : () -> (opt IcpMarketPrice) query;
+  saveLastMarketPrice : (IcpMarketPrice) -> (IcpMarketPrice);
+}

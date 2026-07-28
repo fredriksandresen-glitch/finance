@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Building2, CircleDollarSign, Home, Landmark, Settings } from "lucide-react";
+import { BarChart3, Building2, CircleDollarSign, Coins, Home, Landmark, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/investeringer", label: "Investeringer", icon: Landmark },
   { href: "/inntekter-utgifter", label: "Inntekter og utgifter", icon: CircleDollarSign },
   { href: "/nettoformue", label: "Nettoformue", icon: BarChart3 },
+  { href: "/icp", label: "ICP", icon: Coins },
   { href: "/innstillinger", label: "Innstillinger", icon: Settings },
 ];
 
@@ -38,7 +39,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white",
-                  active && "bg-zinc-950 text-white hover:bg-zinc-950 hover:text-white dark:bg-white dark:text-zinc-950",
+                  active &&
+                    "bg-zinc-950 text-white hover:bg-zinc-950 hover:text-white dark:bg-white dark:text-zinc-950",
                 )}
               >
                 <Icon size={18} />

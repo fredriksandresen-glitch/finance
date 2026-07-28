@@ -23,6 +23,34 @@ NEXT_PUBLIC_ICP_NETWORK=local
 
 Mock-repositoryet i `src/lib/repositories` bør senere få en `IcpPortfolioRepository` med samme kontrakt som `PortfolioRepository`.
 
+## ICP reward-dashboard
+
+Feature-branchen legger til en egen `/icp`-side med wallet-balanse, neuron-staking, staket maturity og reward-prognoser. Finansielle verdier lagres som normaliserte desimalstrenger og beregnes med `decimal.js`.
+
+I preview brukes `BrowserIcpRepository`, som lagrer manuelt registrerte ICP-verdier og sist gyldige markedspris i nettleserens localStorage. `IcpCanisterPortfolioRepository` har samme kontrakt og er opprettet som adapterpunkt, men mainnet-kall er ikke aktivert uten egen godkjenning.
+
+Det foreslåtte Candid-grensesnittet for reward-data ligger i [`rewards.did`](./rewards.did) og dekker:
+
+- `getIcpPortfolio`
+- `updateIcpPortfolio`
+- `getLastMarketPrice`
+- `saveLastMarketPrice`
+
+Canisteren bør lagre data per autentisert `principal`. Decimalverdier lagres som `text` og valideres/normaliseres ved canistergrensen for å unngå tap fra `float64`.
+
+Automatisk wallet- og neuron-synkronisering er eksplisitt utsatt. Senere kan en NNS-adapter implementere lesing av wallet-balanse, låst ICP, staket maturity, dissolve delay og walletens reward-prognose uten å endre UI-kontraktene.
+
+## CoinGecko
+
+`/api/icp-price` er et servermellomlag for CoinGecko-ID-en `internet-computer`. Ruten henter USD og NOK, 24-timersendring og siste oppdatering, og bruker 60 sekunders servercache med minst 20 sekunder mellom tvungne oppdateringer.
+
+```bash
+COINGECKO_API_KEY=
+COINGECKO_API_PLAN=demo
+```
+
+API-nøkkelen er valgfri for lokal utprøving og må aldri prefikses med `NEXT_PUBLIC_`. Sett `COINGECKO_API_PLAN=pro` bare dersom nøkkelen tilhører Pro-endepunktet. Ved feil brukes varm servercache eller sist lagrede pris i nettleseren. Når canisterrepositoryet aktiveres, flyttes prisfallbacken til stabil canisterlagring.
+
 ## Forslag til Candid-grensesnitt
 
 ```did

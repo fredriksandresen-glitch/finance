@@ -28,6 +28,8 @@ Kopier `.env.example` til `.env.local` ved lokal kjøring:
 ```bash
 NEXT_PUBLIC_ICP_CANISTER_ID=tymvd-6aaaa-aaaam-qjbza-cai
 NEXT_PUBLIC_ICP_NETWORK=local
+COINGECKO_API_KEY=
+COINGECKO_API_PLAN=demo
 ```
 
 Ikke legg private nøkler, seed phrases, controller-identiteter eller hemmeligheter i GitHub eller Vercel.
@@ -56,6 +58,7 @@ Når ICP kobles på, kan `MockPortfolioRepository` erstattes eller suppleres med
 - Investeringer: manuell registrering av aksjer, krypto, fond, kontanter, eiendom og andre investeringer.
 - Inntekter og utgifter: manuelle poster med kategori, type, fast/variabel og gjentakende/enkeltstående.
 - Nettoformue: historisk utvikling med intervaller for 1 måned, 6 måneder, 1 år og hele perioden.
+- ICP: wallet, neuron-staking, staket maturity, CoinGecko-livepris og presise reward-prognoser med valgfri compounding.
 - Innstillinger: valuta, tema, import/eksport-plassholdere, Internet Identity-plass og ICP-canister-konfigurasjon.
 
 ## Kvalitetssjekker
@@ -75,6 +78,7 @@ Prosjektet er en standard Next.js-app og kan deployes direkte fra GitHub i Verce
 - Build command: `pnpm build`
 - Install command: `pnpm install`
 - Environment variable: `NEXT_PUBLIC_ICP_CANISTER_ID=tymvd-6aaaa-aaaam-qjbza-cai`
+- Optional server variable: `COINGECKO_API_KEY` (må ikke eksponeres med `NEXT_PUBLIC_`)
 
 ## ICP-plan
 
