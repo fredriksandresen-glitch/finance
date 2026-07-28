@@ -84,3 +84,4 @@ Prosjektet er en standard Next.js-app og kan deployes direkte fra GitHub i Verce
 
 Se `docs/icp/README.md` for canister-ID, foreslått Candid-grensesnitt, hvilke data som bør lagres i canisteren, Internet Identity-plan og hvordan Vercel-frontend senere kan kommunisere med canisteren.
 # Test
+# Verified
