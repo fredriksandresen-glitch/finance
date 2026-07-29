@@ -17,7 +17,15 @@ export class BrowserIcpRepository implements IcpPortfolioRepository, IcpMarketPr
   async getIcpPortfolio() {
     if (typeof window === "undefined") return structuredClone(defaultIcpPortfolio);
     const stored = window.localStorage.getItem(PORTFOLIO_STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as IcpPortfolio) : structuredClone(defaultIcpPortfolio);
+    if (!stored) return structuredClone(defaultIcpPortfolio);
+
+    const parsed = JSON.parse(stored) as IcpPortfolio;
+    return {
+      ...defaultIcpPortfolio,
+      ...parsed,
+      preferredCurrency: "NOK" as const,
+      customIcpPrice: parsed.preferredCurrency === "USD" ? defaultIcpPortfolio.customIcpPrice : parsed.customIcpPrice,
+    };
   }
 
   async updateIcpPortfolio(portfolio: IcpPortfolio) {

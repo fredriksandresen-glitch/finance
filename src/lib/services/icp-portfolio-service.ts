@@ -19,6 +19,7 @@ export class IcpPortfolioService {
   updatePortfolio(portfolio: IcpPortfolio) {
     const normalized: IcpPortfolio = {
       ...portfolio,
+      preferredCurrency: "NOK",
       availableIcp: normalizeNorwegianDecimal(portfolio.availableIcp),
       lockedIcp: normalizeNorwegianDecimal(portfolio.lockedIcp),
       stakedMaturity: normalizeNorwegianDecimal(portfolio.stakedMaturity),

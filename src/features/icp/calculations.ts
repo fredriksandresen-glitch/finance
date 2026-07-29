@@ -1,5 +1,11 @@
 import Decimal from "decimal.js";
-import type { CompoundingMode, IcpPortfolio, RewardPeriod, RewardProjectionRow } from "@/features/icp/types";
+import type {
+  CompoundingMode,
+  IcpPortfolio,
+  IcpValueProjectionPoint,
+  RewardPeriod,
+  RewardProjectionRow,
+} from "@/features/icp/types";
 
 const MoneyDecimal = Decimal.clone({ precision: 40, rounding: Decimal.ROUND_HALF_UP });
 
@@ -102,6 +108,62 @@ export function calculateRewardProjection(portfolio: IcpPortfolio, livePrice: st
       customFiatValue: reward.mul(decimal(portfolio.customIcpPrice || "0")).toString(),
     };
   });
+}
+
+export function calculateDailyValueProjection(
+  portfolio: IcpPortfolio,
+  livePriceNok: string,
+  startDate: string,
+  days = 365,
+): IcpValueProjectionPoint[] {
+  const initialTotal = calculateTotalEstimatedHoldings(portfolio);
+  const initialMaturity = decimal(portfolio.stakedMaturity);
+  const initialStake = calculateEffectiveRewardStake(portfolio.lockedIcp, portfolio.stakedMaturity);
+  const annualReward = calculateLinearAnnualReward(portfolio);
+  const impliedAnnualRate = initialStake.isZero() ? decimal(0) : annualReward.div(initialStake);
+  const linearDailyReward = annualReward.div(365);
+  const price = decimal(livePriceNok);
+  const start = new Date(startDate);
+  let accruedReward = decimal(0);
+  let compoundedStake = initialStake;
+  let pendingMonthlyReward = decimal(0);
+  const points: IcpValueProjectionPoint[] = [];
+
+  for (let day = 0; day <= days; day += 1) {
+    const date = new Date(start);
+    date.setUTCDate(date.getUTCDate() + day);
+    const maturity = portfolio.autoStakeMaturity ? initialMaturity.plus(accruedReward) : initialMaturity;
+    const total = initialTotal.plus(accruedReward);
+
+    points.push({
+      date: date.toISOString().slice(0, 10),
+      day,
+      maturityIcp: maturity.toString(),
+      totalIcp: total.toString(),
+      totalValueNok: total.mul(price).toString(),
+    });
+
+    if (day === days) break;
+
+    let dailyReward = linearDailyReward;
+    if (portfolio.compoundingMode !== "none" && !initialStake.isZero()) {
+      dailyReward = compoundedStake.mul(impliedAnnualRate).div(365);
+    }
+
+    accruedReward = accruedReward.plus(dailyReward);
+
+    if (portfolio.compoundingMode === "daily") {
+      compoundedStake = compoundedStake.plus(dailyReward);
+    } else if (portfolio.compoundingMode === "monthly") {
+      pendingMonthlyReward = pendingMonthlyReward.plus(dailyReward);
+      if ((day + 1) % 30 === 0) {
+        compoundedStake = compoundedStake.plus(pendingMonthlyReward);
+        pendingMonthlyReward = decimal(0);
+      }
+    }
+  }
+
+  return points;
 }
 
 export function formatIcp(value: string | Decimal, minimumFractionDigits = 2, maximumFractionDigits = 4) {

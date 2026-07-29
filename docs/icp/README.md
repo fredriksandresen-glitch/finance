@@ -44,6 +44,10 @@ Automatisk wallet- og neuron-synkronisering er eksplisitt utsatt. Senere kan en 
 
 `/api/icp-price` er et servermellomlag for CoinGecko-ID-en `internet-computer`. Ruten henter USD og NOK, 24-timersendring og siste oppdatering, og bruker 60 sekunders servercache med minst 20 sekunder mellom tvungne oppdateringer.
 
+Den statisk eksporterte canisterversjonen bruker `IcpMarketService` i nettleseren. Tjenesten henter livepris og 90 dagers markedshistorikk direkte fra CoinGeckos offentlige API, alltid i NOK, og lagrer siste vellykkede historikk lokalt som fallback. Ingen API-nøkkel eksponeres i frontend.
+
+Verdigrafen er en 12-måneders prognose. Den fordeler valgt årsprognose på 365 dager og legger opptjent reward til maturity hver dag når auto-staking er aktivert. Med standard lineær wallet-prognose blir samlet tillegg etter 365 dager nøyaktig lik `walletAnnualForecastIcp`; ved valgt compounding øker dagsbeløpet etter den valgte modellen. NOK-verdien bruker dagens ICP-pris og er derfor ikke en prisprognose.
+
 ```bash
 COINGECKO_API_KEY=
 COINGECKO_API_PLAN=demo

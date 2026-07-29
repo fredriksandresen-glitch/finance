@@ -142,19 +142,10 @@ export function RewardProjection({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm text-zinc-300">
+            <div className="grid gap-2 text-sm text-zinc-300">
               Valuta
-              <select
-                value={portfolio.preferredCurrency}
-                onChange={(event) =>
-                  onChange("preferredCurrency", event.target.value as IcpPortfolio["preferredCurrency"])
-                }
-                className={fieldClass}
-              >
-                <option value="USD">USD</option>
-                <option value="NOK">NOK</option>
-              </select>
-            </label>
+              <div className={`${fieldClass} flex items-center text-zinc-100`}>NOK · norske kroner</div>
+            </div>
             <label className="grid gap-2 text-sm text-zinc-300">
               Compounding
               <select

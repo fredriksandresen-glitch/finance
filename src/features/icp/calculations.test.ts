@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateEffectiveRewardStake,
+  calculateDailyValueProjection,
   calculateRewardForPeriod,
   calculateRewardProjection,
   normalizeNorwegianDecimal,
@@ -26,9 +27,9 @@ describe("ICP reward calculations", () => {
     expect(calculateRewardForPeriod(portfolio, "year").toNumber()).not.toBe(879.4);
   });
 
-  it("calculates fiat value from the custom price", () => {
+  it("calculates NOK value from the custom price", () => {
     const rows = calculateRewardProjection(defaultIcpPortfolio, "2");
-    expect(rows.find((row) => row.period === "year")?.customFiatValue).toBe("8794");
+    expect(rows.find((row) => row.period === "year")?.customFiatValue).toBe("87940");
   });
 
   it("does not change ICP rewards when only price changes", () => {
@@ -41,5 +42,22 @@ describe("ICP reward calculations", () => {
   it("normalizes Norwegian decimal input", () => {
     expect(normalizeNorwegianDecimal("1653,53")).toBe("1653.53");
     expect(normalizeNorwegianDecimal("1 653,53")).toBe("1653.53");
+  });
+
+  it("adds wallet rewards to maturity every day", () => {
+    const projection = calculateDailyValueProjection(defaultIcpPortfolio, "20", "2026-07-29T00:00:00.000Z");
+
+    expect(projection).toHaveLength(366);
+    expect(Number(projection[1].maturityIcp) - Number(projection[0].maturityIcp)).toBeCloseTo(879.4 / 365, 8);
+    expect(Number(projection[365].maturityIcp) - Number(projection[0].maturityIcp)).toBeCloseTo(879.4, 8);
+    expect(Number(projection[365].totalIcp) - Number(projection[0].totalIcp)).toBeCloseTo(879.4, 8);
+    expect(Number(projection[365].totalValueNok)).toBeCloseTo((17063.47 + 879.4) * 20, 6);
+  });
+
+  it("compounds daily maturity when daily compounding is selected", () => {
+    const portfolio = { ...defaultIcpPortfolio, compoundingMode: "daily" as const };
+    const projection = calculateDailyValueProjection(portfolio, "20", "2026-07-29T00:00:00.000Z");
+
+    expect(Number(projection[365].maturityIcp) - Number(projection[0].maturityIcp)).toBeGreaterThan(879.4);
   });
 });

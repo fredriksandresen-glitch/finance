@@ -4,87 +4,64 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Database, RefreshCw, Save, TriangleAlert } from "lucide-react";
 import { formatFiat } from "@/features/icp/calculations";
 import { IcpOverview } from "@/features/icp/icp-overview";
+import { PortfolioCharts } from "@/features/icp/portfolio-charts";
 import { RewardProjection } from "@/features/icp/reward-projection";
-import { defaultIcpPortfolio, type IcpMarketPrice, type IcpPortfolio } from "@/features/icp/types";
+import {
+  defaultIcpPortfolio,
+  type IcpMarketPrice,
+  type IcpPortfolio,
+  type IcpPriceHistoryPoint,
+} from "@/features/icp/types";
 import { ICP_CANISTER_ID } from "@/lib/icp/config";
+import { icpMarketService } from "@/lib/services/icp-market-service";
 import { icpPortfolioService } from "@/lib/services/icp-portfolio-service";
-
-async function fetchCoinGeckoDirect(): Promise<IcpMarketPrice> {
-  const response = await fetch(
-    "https://api.coingecko.com/api/v3/simple/price?ids=internet-computer&vs_currencies=usd,nok&include_24hr_change=true&include_last_updated_at=true",
-  );
-  if (!response.ok) throw new Error(`CoinGecko svarte med ${response.status}.`);
-
-  const payload = (await response.json()) as {
-    "internet-computer"?: {
-      usd?: number;
-      nok?: number;
-      usd_24h_change?: number;
-      nok_24h_change?: number;
-      last_updated_at?: number;
-    };
-  };
-  const value = payload["internet-computer"];
-  if (!value?.usd || !value.nok || !value.last_updated_at) {
-    throw new Error("CoinGecko-responsen mangler prisdata.");
-  }
-  return {
-    usd: String(value.usd),
-    nok: String(value.nok),
-    usd24hChange: String(value.usd_24h_change ?? 0),
-    nok24hChange: String(value.nok_24h_change ?? 0),
-    lastUpdatedAt: new Date(value.last_updated_at * 1000).toISOString(),
-    fetchedAt: new Date().toISOString(),
-    source: "live",
-  };
-}
 
 export function IcpDashboard() {
   const [portfolio, setPortfolio] = useState<IcpPortfolio>(defaultIcpPortfolio);
   const [marketPrice, setMarketPrice] = useState<IcpMarketPrice | null>(null);
+  const [priceHistory, setPriceHistory] = useState<IcpPriceHistoryPoint[]>([]);
   const [livePrice, setLivePrice] = useState("");
+  const [projectionStartDate, setProjectionStartDate] = useState("");
   const [priceLoading, setPriceLoading] = useState(true);
   const [priceError, setPriceError] = useState("");
+  const [historyError, setHistoryError] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
 
-  const selectPrice = useCallback((price: IcpMarketPrice, currency: IcpPortfolio["preferredCurrency"]) => {
-    setLivePrice(currency === "USD" ? price.usd : price.nok);
+  const selectPrice = useCallback((price: IcpMarketPrice) => {
+    setLivePrice(price.nok);
   }, []);
 
-  const fetchPrice = useCallback(
-    async (force = false, currency: IcpPortfolio["preferredCurrency"] = "USD") => {
-      setPriceLoading(true);
-      setPriceError("");
-      try {
-        let price: IcpMarketPrice;
-        try {
-          // Prøv server-rute først (Vercel)
-          const response = await fetch(`/api/icp-price${force ? "?refresh=1" : ""}`);
-          if (!response.ok) throw new Error("Server-rute utilgjengelig.");
-          price = (await response.json()) as IcpMarketPrice;
-        } catch {
-          // Fallback: direkte CoinGecko-kall fra klienten (ICP canister)
-          price = await fetchCoinGeckoDirect();
-        }
-        setMarketPrice(price);
-        selectPrice(price, currency);
-        await icpPortfolioService.saveLastMarketPrice(price);
-      } catch (error) {
-        const fallback = await icpPortfolioService.getLastMarketPrice();
-        if (fallback) {
-          const localFallback = { ...fallback, source: "local-fallback" as const };
-          setMarketPrice(localFallback);
-          selectPrice(localFallback, currency);
-          setPriceError("Livepris kunne ikke hentes. Viser sist lagrede pris.");
-        } else {
-          setPriceError(error instanceof Error ? error.message : "Livepris er midlertidig utilgjengelig.");
-        }
-      } finally {
-        setPriceLoading(false);
+  const fetchPrice = useCallback(async () => {
+    setPriceLoading(true);
+    setPriceError("");
+    try {
+      const price = await icpMarketService.getCurrentPrice();
+      setMarketPrice(price);
+      selectPrice(price);
+      await icpPortfolioService.saveLastMarketPrice(price);
+    } catch (error) {
+      const fallback = await icpPortfolioService.getLastMarketPrice();
+      if (fallback) {
+        const localFallback = { ...fallback, source: "local-fallback" as const };
+        setMarketPrice(localFallback);
+        selectPrice(localFallback);
+        setPriceError("Livepris kunne ikke hentes. Viser sist lagrede pris.");
+      } else {
+        setPriceError(error instanceof Error ? error.message : "Livepris er midlertidig utilgjengelig.");
       }
-    },
-    [selectPrice],
-  );
+    } finally {
+      setPriceLoading(false);
+    }
+  }, [selectPrice]);
+
+  const fetchPriceHistory = useCallback(async () => {
+    setHistoryError("");
+    try {
+      setPriceHistory(await icpMarketService.getNokHistory());
+    } catch {
+      setHistoryError("Prishistorikk er midlertidig utilgjengelig. Prøv å oppdatere igjen.");
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -92,19 +69,18 @@ export function IcpDashboard() {
       const stored = await icpPortfolioService.getPortfolio();
       if (!active) return;
       setPortfolio(stored);
-      await fetchPrice(false, stored.preferredCurrency);
+      setProjectionStartDate(new Date().toISOString());
+      await Promise.all([fetchPrice(), fetchPriceHistory()]);
     }
     void initialize();
     return () => {
       active = false;
     };
-  }, [fetchPrice]);
+  }, [fetchPrice, fetchPriceHistory]);
 
   function updatePortfolio<K extends keyof IcpPortfolio>(field: K, value: IcpPortfolio[K]) {
     setPortfolio((current) => ({ ...current, [field]: value }));
     setSaveState("idle");
-    if (field === "preferredCurrency" && marketPrice)
-      selectPrice(marketPrice, value as IcpPortfolio["preferredCurrency"]);
   }
 
   async function savePortfolio() {
@@ -133,7 +109,7 @@ export function IcpDashboard() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => void fetchPrice(true, portfolio.preferredCurrency)}
+              onClick={() => void Promise.all([fetchPrice(), fetchPriceHistory()])}
               disabled={priceLoading}
               className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 px-3 text-sm font-medium text-zinc-300 hover:bg-white/5 disabled:opacity-50"
               title="Oppdater CoinGecko-pris"
@@ -158,7 +134,7 @@ export function IcpDashboard() {
           <span>
             Canister: <span className="font-mono text-zinc-400">{ICP_CANISTER_ID}</span>
           </span>
-          {marketPrice ? <span>Livepris: {formatFiat(livePrice || "0", portfolio.preferredCurrency, 4)}</span> : null}
+          {marketPrice ? <span>Livepris: {formatFiat(livePrice || "0", "NOK", 4)}</span> : null}
           {saveState === "saved" ? (
             <span className="inline-flex items-center gap-1 text-emerald-300">
               <Check size={13} />
@@ -177,6 +153,13 @@ export function IcpDashboard() {
 
       <div className="space-y-6 p-4 sm:p-6 lg:p-7">
         <IcpOverview portfolio={portfolio} marketPrice={marketPrice} livePrice={livePrice} />
+        <PortfolioCharts
+          portfolio={portfolio}
+          livePriceNok={livePrice}
+          priceHistory={priceHistory}
+          historyError={historyError}
+          projectionStartDate={projectionStartDate}
+        />
         <RewardProjection
           portfolio={portfolio}
           livePrice={livePrice}

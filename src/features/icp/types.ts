@@ -29,6 +29,19 @@ export type IcpMarketPrice = {
   source: "live" | "server-cache" | "local-fallback";
 };
 
+export type IcpPriceHistoryPoint = {
+  timestamp: string;
+  nok: string;
+};
+
+export type IcpValueProjectionPoint = {
+  date: string;
+  day: number;
+  maturityIcp: string;
+  totalIcp: string;
+  totalValueNok: string;
+};
+
 export type RewardPeriod = "day" | "week" | "month" | "year";
 
 export type RewardProjectionRow = {
@@ -48,8 +61,8 @@ export const defaultIcpPortfolio: IcpPortfolio = {
   dissolveDelayMonths: 24,
   eightYearGangBonus: true,
   autoStakeMaturity: true,
-  preferredCurrency: "USD",
-  customIcpPrice: "10",
+  preferredCurrency: "NOK",
+  customIcpPrice: "100",
   rewardCalculationMode: "walletForecast",
   compoundingMode: "none",
   updatedAt: "2026-07-28T00:00:00.000Z",
