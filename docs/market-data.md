@@ -6,7 +6,7 @@ ICP-pris og 90 dagers historikk hentes direkte fra CoinGecko i NOK. Antallet kom
 
 ## BMNR
 
-Beholdningen er 700 aksjer med gjennomsnittlig kjøpspris 450 NOK. Vercel-funksjonen `api/bmnr.ts` henter siste BMNR-pris og daglige sluttkurser fra Nasdaqs offentlige markedsdata. USD/NOK hentes fra Frankfurter og brukes til å vise hele beholdningen i NOK.
+Beholdningen er 700 aksjer med gjennomsnittlig kjøpspris 450 NOK. Vercel-funksjonen `src/app/api/bmnr/route.ts` henter siste BMNR-pris og daglige sluttkurser fra Nasdaqs offentlige markedsdata. USD/NOK hentes fra Frankfurter og brukes til å vise hele beholdningen i NOK.
 
 Canister-frontenden kaller funksjonen via:
 
