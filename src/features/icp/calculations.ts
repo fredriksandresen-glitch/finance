@@ -1,8 +1,10 @@
 import Decimal from "decimal.js";
 import type {
   CompoundingMode,
+  IcpHistoricalValuePoint,
+  IcpHoldingEvent,
   IcpPortfolio,
-  IcpValueProjectionPoint,
+  IcpPriceHistoryPoint,
   RewardPeriod,
   RewardProjectionRow,
 } from "@/features/icp/types";
@@ -110,45 +112,23 @@ export function calculateRewardProjection(portfolio: IcpPortfolio, livePrice: st
   });
 }
 
-export function calculateDailyValueProjection(
-  portfolio: IcpPortfolio,
-  livePriceNok: string,
-  startDate: string,
-  days = 365,
-): IcpValueProjectionPoint[] {
-  const initialTotal = calculateTotalEstimatedHoldings(portfolio);
-  const initialMaturity = decimal(portfolio.stakedMaturity);
+export function calculateAccruedRewardForDays(portfolio: IcpPortfolio, days: number) {
+  const wholeDays = Math.max(0, Math.floor(days));
+  if (wholeDays === 0) return decimal(0);
+
   const initialStake = calculateEffectiveRewardStake(portfolio.lockedIcp, portfolio.stakedMaturity);
   const annualReward = calculateLinearAnnualReward(portfolio);
+  if (portfolio.compoundingMode === "none" || initialStake.isZero()) {
+    return annualReward.mul(wholeDays).div(365);
+  }
+
   const impliedAnnualRate = initialStake.isZero() ? decimal(0) : annualReward.div(initialStake);
-  const linearDailyReward = annualReward.div(365);
-  const price = decimal(livePriceNok);
-  const start = new Date(startDate);
   let accruedReward = decimal(0);
   let compoundedStake = initialStake;
   let pendingMonthlyReward = decimal(0);
-  const points: IcpValueProjectionPoint[] = [];
 
-  for (let day = 0; day <= days; day += 1) {
-    const date = new Date(start);
-    date.setUTCDate(date.getUTCDate() + day);
-    const maturity = portfolio.autoStakeMaturity ? initialMaturity.plus(accruedReward) : initialMaturity;
-    const total = initialTotal.plus(accruedReward);
-
-    points.push({
-      date: date.toISOString().slice(0, 10),
-      day,
-      maturityIcp: maturity.toString(),
-      totalIcp: total.toString(),
-      totalValueNok: total.mul(price).toString(),
-    });
-
-    if (day === days) break;
-
-    let dailyReward = linearDailyReward;
-    if (portfolio.compoundingMode !== "none" && !initialStake.isZero()) {
-      dailyReward = compoundedStake.mul(impliedAnnualRate).div(365);
-    }
+  for (let day = 1; day <= wholeDays; day += 1) {
+    const dailyReward = compoundedStake.mul(impliedAnnualRate).div(365);
 
     accruedReward = accruedReward.plus(dailyReward);
 
@@ -156,14 +136,109 @@ export function calculateDailyValueProjection(
       compoundedStake = compoundedStake.plus(dailyReward);
     } else if (portfolio.compoundingMode === "monthly") {
       pendingMonthlyReward = pendingMonthlyReward.plus(dailyReward);
-      if ((day + 1) % 30 === 0) {
+      if (day % 30 === 0) {
         compoundedStake = compoundedStake.plus(pendingMonthlyReward);
         pendingMonthlyReward = decimal(0);
       }
     }
   }
 
-  return points;
+  return accruedReward;
+}
+
+export function toOsloDate(value: string | Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Oslo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(typeof value === "string" ? new Date(value) : value);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function calendarDayNumber(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+}
+
+export function calendarDaysBetween(from: string, to: string) {
+  return Math.max(0, calendarDayNumber(to) - calendarDayNumber(from));
+}
+
+function addCalendarDays(date: string, days: number) {
+  const [year, month, day] = date.split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day + days));
+  return value.toISOString().slice(0, 10);
+}
+
+export function rollForwardDailyMaturity(portfolio: IcpPortfolio, now: string | Date) {
+  if (!portfolio.autoStakeMaturity) return structuredClone(portfolio);
+
+  const currentDate = toOsloDate(now);
+  const elapsedDays = calendarDaysBetween(toOsloDate(portfolio.updatedAt), currentDate);
+  if (elapsedDays === 0) return structuredClone(portfolio);
+
+  const accrued = calculateAccruedRewardForDays(portfolio, elapsedDays);
+  return {
+    ...portfolio,
+    stakedMaturity: decimal(portfolio.stakedMaturity).plus(accrued).toString(),
+    updatedAt: `${currentDate}T12:00:00.000Z`,
+  };
+}
+
+export function calculateHistoricalValueSeries(
+  portfolio: IcpPortfolio,
+  priceHistory: IcpPriceHistoryPoint[],
+  holdingEvents: IcpHoldingEvent[],
+  livePriceNok: string,
+  todayValue: string | Date,
+  days = 90,
+): IcpHistoricalValuePoint[] {
+  if (priceHistory.length === 0 || !livePriceNok) return [];
+
+  const today = toOsloDate(todayValue);
+  const pricesByDate = new Map(
+    priceHistory
+      .slice()
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+      .map((point) => [toOsloDate(point.timestamp), decimal(point.nok)]),
+  );
+  pricesByDate.set(today, decimal(livePriceNok));
+
+  const sortedPrices = [...pricesByDate.entries()].sort(([a], [b]) => a.localeCompare(b));
+  let lastKnownPrice = sortedPrices[0]?.[1] ?? decimal(livePriceNok);
+  const currentTotal = calculateTotalEstimatedHoldings(portfolio);
+  const currentMaturity = decimal(portfolio.stakedMaturity);
+  const result: IcpHistoricalValuePoint[] = [];
+
+  for (let offset = -(days - 1); offset <= 0; offset += 1) {
+    const date = addCalendarDays(today, offset);
+    const exactPrice = pricesByDate.get(date);
+    if (exactPrice) lastKnownPrice = exactPrice;
+
+    const elapsedToToday = calendarDaysBetween(date, today);
+    const maturityAccruedAfterDate = calculateAccruedRewardForDays(portfolio, elapsedToToday);
+    const changesAfterDate = holdingEvents
+      .filter((event) => event.date > date)
+      .reduce((sum, event) => sum.plus(decimal(event.amountIcp)), decimal(0));
+    const changesOnDate = holdingEvents
+      .filter((event) => event.date === date)
+      .reduce((sum, event) => sum.plus(decimal(event.amountIcp)), decimal(0));
+    const total = Decimal.max(0, currentTotal.minus(maturityAccruedAfterDate).minus(changesAfterDate));
+    const maturity = Decimal.max(0, currentMaturity.minus(maturityAccruedAfterDate));
+
+    result.push({
+      date,
+      priceNok: lastKnownPrice.toString(),
+      maturityIcp: maturity.toString(),
+      totalIcp: total.toString(),
+      totalValueNok: total.mul(lastKnownPrice).toString(),
+      manualChangeIcp: changesOnDate.toString(),
+    });
+  }
+
+  return result;
 }
 
 export function formatIcp(value: string | Decimal, minimumFractionDigits = 2, maximumFractionDigits = 4) {

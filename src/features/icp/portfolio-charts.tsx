@@ -2,15 +2,15 @@
 
 import { useMemo } from "react";
 import { Activity, TrendingUp } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  calculateDailyValueProjection,
+  calculateHistoricalValueSeries,
   calculateRewardForPeriod,
   decimal,
   formatFiat,
   formatIcp,
 } from "@/features/icp/calculations";
-import type { IcpPortfolio, IcpPriceHistoryPoint } from "@/features/icp/types";
+import type { IcpHoldingEvent, IcpPortfolio, IcpPriceHistoryPoint } from "@/features/icp/types";
 
 function formatDate(value: string, options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat("nb-NO", { ...options, timeZone: "UTC" }).format(new Date(value));
@@ -32,14 +32,16 @@ export function PortfolioCharts({
   portfolio,
   livePriceNok,
   priceHistory,
+  holdingEvents,
   historyError,
-  projectionStartDate,
+  historyEndDate,
 }: {
   portfolio: IcpPortfolio;
   livePriceNok: string;
   priceHistory: IcpPriceHistoryPoint[];
+  holdingEvents: IcpHoldingEvent[];
   historyError: string;
-  projectionStartDate: string;
+  historyEndDate: string;
 }) {
   const priceData = useMemo(
     () =>
@@ -51,18 +53,25 @@ export function PortfolioCharts({
   );
   const valueData = useMemo(
     () =>
-      projectionStartDate && livePriceNok
-        ? calculateDailyValueProjection(portfolio, livePriceNok, projectionStartDate).map((point) => ({
-            ...point,
-            maturityIcp: decimal(point.maturityIcp).toNumber(),
-            totalIcp: decimal(point.totalIcp).toNumber(),
-            totalValueNok: decimal(point.totalValueNok).toNumber(),
-          }))
+      historyEndDate && livePriceNok
+        ? calculateHistoricalValueSeries(portfolio, priceHistory, holdingEvents, livePriceNok, historyEndDate).map(
+            (point) => ({
+              ...point,
+              priceNok: decimal(point.priceNok).toNumber(),
+              maturityIcp: decimal(point.maturityIcp).toNumber(),
+              totalIcp: decimal(point.totalIcp).toNumber(),
+              totalValueNok: decimal(point.totalValueNok).toNumber(),
+              manualChangeIcp: decimal(point.manualChangeIcp).toNumber(),
+            }),
+          )
         : [],
-    [livePriceNok, portfolio, projectionStartDate],
+    [historyEndDate, holdingEvents, livePriceNok, portfolio, priceHistory],
   );
   const dailyMaturity = calculateRewardForPeriod(portfolio, "day");
-  const finalProjection = valueData.at(-1);
+  const firstValue = valueData[0];
+  const latestValue = valueData.at(-1);
+  const maturityAdded =
+    firstValue && latestValue ? decimal(latestValue.maturityIcp).minus(firstValue.maturityIcp) : decimal(0);
 
   return (
     <section className="grid gap-4 xl:grid-cols-2" aria-label="ICP-grafer">
@@ -133,12 +142,15 @@ export function PortfolioCharts({
             </div>
             <div>
               <h2 className="text-lg font-semibold">Total ICP-verdi</h2>
-              <p className="mt-1 text-sm text-zinc-500">12 måneder med daglig maturity-opptjening</p>
+              <p className="mt-1 text-sm text-zinc-500">Historisk dagsverdi · siste 90 dager</p>
             </div>
           </div>
-          <span className="rounded-md border border-emerald-400/20 bg-emerald-400/[0.06] px-2.5 py-1 text-xs text-emerald-300">
-            +{formatIcp(dailyMaturity, 4, 4)} / dag
-          </span>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-zinc-400">1 punkt / dag</span>
+            <span className="rounded-md border border-emerald-400/20 bg-emerald-400/[0.06] px-2.5 py-1 text-xs text-emerald-300">
+              +{formatIcp(dailyMaturity, 4, 4)} maturity
+            </span>
+          </div>
         </div>
 
         {valueData.length > 1 ? (
@@ -155,7 +167,6 @@ export function PortfolioCharts({
                   minTickGap={48}
                 />
                 <YAxis
-                  yAxisId="nok"
                   tickFormatter={(value: number) => `${formatCompactNok(value)} kr`}
                   tick={{ fill: "#71717a", fontSize: 11 }}
                   tickLine={false}
@@ -163,7 +174,6 @@ export function PortfolioCharts({
                   width={68}
                   domain={["dataMin", "auto"]}
                 />
-                <YAxis yAxisId="icp" orientation="right" hide domain={["dataMin", "auto"]} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelFormatter={(value) => formatDate(String(value), { dateStyle: "medium" })}
@@ -174,7 +184,6 @@ export function PortfolioCharts({
                   }
                 />
                 <Area
-                  yAxisId="nok"
                   type="monotone"
                   dataKey="totalValueNok"
                   name="Totalverdi"
@@ -184,16 +193,6 @@ export function PortfolioCharts({
                   fillOpacity={0.1}
                   isAnimationActive={false}
                 />
-                <Line
-                  yAxisId="icp"
-                  type="monotone"
-                  dataKey="maturityIcp"
-                  name="Staket maturity"
-                  stroke="#fbbf24"
-                  strokeWidth={1.5}
-                  dot={false}
-                  isAnimationActive={false}
-                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -201,23 +200,33 @@ export function PortfolioCharts({
           <div className="mt-6 flex h-72 items-center justify-center text-sm text-zinc-500">Venter på NOK-pris ...</div>
         )}
 
-        <div className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2 xl:grid-cols-4">
           <div>
-            <p className="text-xs uppercase text-zinc-500">Maturity om 1 år</p>
-            <p className="mt-1 font-semibold text-amber-300">
-              {finalProjection ? formatIcp(String(finalProjection.maturityIcp)) : "–"}
+            <p className="text-xs uppercase text-zinc-500">ICP i dag</p>
+            <p className="mt-1 font-semibold text-cyan-300">
+              {latestValue ? formatIcp(String(latestValue.totalIcp)) : "–"}
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase text-zinc-500">Estimert verdi om 1 år</p>
-            <p className="mt-1 font-semibold text-emerald-300">
-              {finalProjection ? formatFiat(String(finalProjection.totalValueNok), "NOK") : "–"}
+            <p className="text-xs uppercase text-zinc-500">Pris i dag</p>
+            <p className="mt-1 font-semibold text-zinc-200">
+              {latestValue ? formatFiat(String(latestValue.priceNok), "NOK") : "–"}
             </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-zinc-500">Totalverdi i dag</p>
+            <p className="mt-1 font-semibold text-emerald-300">
+              {latestValue ? formatFiat(String(latestValue.totalValueNok), "NOK") : "–"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-zinc-500">Maturity lagt til</p>
+            <p className="mt-1 font-semibold text-amber-300">{latestValue ? `+${formatIcp(maturityAdded)}` : "–"}</p>
           </div>
         </div>
         <p className="mt-3 text-xs leading-5 text-zinc-500">
-          Verdigrafen bruker dagens ICP-pris i NOK. Maturity legges til hver dag; dette er en prognose, ikke garantert
-          avkastning.
+          Hvert punkt er totalt antall ICP den dagen × faktisk ICP-pris i NOK den dagen. Maturity legges til daglig, og
+          manuelle saldoøkninger registreres som kjøp fra datoen du lagrer dem.
         </p>
       </article>
     </section>

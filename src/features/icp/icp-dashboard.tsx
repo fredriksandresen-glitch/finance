@@ -8,6 +8,7 @@ import { PortfolioCharts } from "@/features/icp/portfolio-charts";
 import { RewardProjection } from "@/features/icp/reward-projection";
 import {
   defaultIcpPortfolio,
+  type IcpHoldingEvent,
   type IcpMarketPrice,
   type IcpPortfolio,
   type IcpPriceHistoryPoint,
@@ -20,8 +21,10 @@ export function IcpDashboard() {
   const [portfolio, setPortfolio] = useState<IcpPortfolio>(defaultIcpPortfolio);
   const [marketPrice, setMarketPrice] = useState<IcpMarketPrice | null>(null);
   const [priceHistory, setPriceHistory] = useState<IcpPriceHistoryPoint[]>([]);
+  const [holdingEvents, setHoldingEvents] = useState<IcpHoldingEvent[]>([]);
   const [livePrice, setLivePrice] = useState("");
-  const [projectionStartDate, setProjectionStartDate] = useState("");
+  const [historyEndDate, setHistoryEndDate] = useState("");
+  const [lastSavedPortfolio, setLastSavedPortfolio] = useState<IcpPortfolio>(defaultIcpPortfolio);
   const [priceLoading, setPriceLoading] = useState(true);
   const [priceError, setPriceError] = useState("");
   const [historyError, setHistoryError] = useState("");
@@ -69,8 +72,14 @@ export function IcpDashboard() {
       const stored = await icpPortfolioService.getPortfolio();
       if (!active) return;
       setPortfolio(stored);
-      setProjectionStartDate(new Date().toISOString());
-      await Promise.all([fetchPrice(), fetchPriceHistory()]);
+      setLastSavedPortfolio(stored);
+      setHistoryEndDate(new Date().toISOString());
+      const [, , events] = await Promise.all([
+        fetchPrice(),
+        fetchPriceHistory(),
+        icpPortfolioService.getHoldingEvents(),
+      ]);
+      if (active) setHoldingEvents(events);
     }
     void initialize();
     return () => {
@@ -85,8 +94,11 @@ export function IcpDashboard() {
 
   async function savePortfolio() {
     try {
-      const saved = await icpPortfolioService.updatePortfolio(portfolio);
+      const saved = await icpPortfolioService.updatePortfolio(portfolio, lastSavedPortfolio);
       setPortfolio(saved);
+      setLastSavedPortfolio(saved);
+      setHoldingEvents(await icpPortfolioService.getHoldingEvents());
+      setHistoryEndDate(new Date().toISOString());
       setSaveState("saved");
     } catch {
       setSaveState("error");
@@ -157,8 +169,9 @@ export function IcpDashboard() {
           portfolio={portfolio}
           livePriceNok={livePrice}
           priceHistory={priceHistory}
+          holdingEvents={holdingEvents}
           historyError={historyError}
-          projectionStartDate={projectionStartDate}
+          historyEndDate={historyEndDate}
         />
         <RewardProjection
           portfolio={portfolio}
@@ -178,6 +191,9 @@ export function IcpDashboard() {
               </h2>
               <p className="mt-1 text-sm text-zinc-500">
                 Manuelle startverdier. Automatisk NNS-synkronisering kommer senere.
+              </p>
+              <p className="mt-1 text-xs text-emerald-300/80">
+                Øker du totalbeholdningen og lagrer, registreres forskjellen som et kjøp i dagens historikk.
               </p>
             </div>
             <span className="rounded-md border border-white/10 px-2 py-1 text-xs text-zinc-500">Manuell</span>

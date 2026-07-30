@@ -58,7 +58,7 @@ Når ICP kobles på, kan `MockPortfolioRepository` erstattes eller suppleres med
 - Investeringer: manuell registrering av aksjer, krypto, fond, kontanter, eiendom og andre investeringer.
 - Inntekter og utgifter: manuelle poster med kategori, type, fast/variabel og gjentakende/enkeltstående.
 - Nettoformue: historisk utvikling med intervaller for 1 måned, 6 måneder, 1 år og hele perioden.
-- ICP: wallet, neuron-staking, daglig staket maturity, CoinGecko-livepris i NOK, 90 dagers prisgraf og 12 måneders verdiprognose med valgfri compounding.
+- ICP: wallet, neuron-staking, daglig staket maturity, CoinGecko-livepris i NOK og historiske 90-dagersgrafer for pris og faktisk totalverdi.
 - Innstillinger: valuta, tema, import/eksport-plassholdere, Internet Identity-plass og ICP-canister-konfigurasjon.
 
 ## Kvalitetssjekker

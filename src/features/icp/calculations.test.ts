@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateEffectiveRewardStake,
-  calculateDailyValueProjection,
+  calculateHistoricalValueSeries,
   calculateRewardForPeriod,
   calculateRewardProjection,
   normalizeNorwegianDecimal,
+  rollForwardDailyMaturity,
 } from "@/features/icp/calculations";
 import { defaultIcpPortfolio } from "@/features/icp/types";
 
@@ -44,20 +45,43 @@ describe("ICP reward calculations", () => {
     expect(normalizeNorwegianDecimal("1 653,53")).toBe("1653.53");
   });
 
-  it("adds wallet rewards to maturity every day", () => {
-    const projection = calculateDailyValueProjection(defaultIcpPortfolio, "20", "2026-07-29T00:00:00.000Z");
+  it("rolls maturity forward once for every elapsed calendar day", () => {
+    const rolled = rollForwardDailyMaturity(defaultIcpPortfolio, "2026-07-30T10:00:00.000Z");
+    const expected = 1653.53 + (879.4 * 2) / 365;
 
-    expect(projection).toHaveLength(366);
-    expect(Number(projection[1].maturityIcp) - Number(projection[0].maturityIcp)).toBeCloseTo(879.4 / 365, 8);
-    expect(Number(projection[365].maturityIcp) - Number(projection[0].maturityIcp)).toBeCloseTo(879.4, 8);
-    expect(Number(projection[365].totalIcp) - Number(projection[0].totalIcp)).toBeCloseTo(879.4, 8);
-    expect(Number(projection[365].totalValueNok)).toBeCloseTo((17063.47 + 879.4) * 20, 6);
+    expect(Number(rolled.stakedMaturity)).toBeCloseTo(expected, 8);
+    expect(rolled.updatedAt).toBe("2026-07-30T12:00:00.000Z");
+    expect(rollForwardDailyMaturity(rolled, "2026-07-30T20:00:00.000Z")).toEqual(rolled);
   });
 
-  it("compounds daily maturity when daily compounding is selected", () => {
-    const portfolio = { ...defaultIcpPortfolio, compoundingMode: "daily" as const };
-    const projection = calculateDailyValueProjection(portfolio, "20", "2026-07-29T00:00:00.000Z");
+  it("calculates 90 daily historical values and applies purchases only from their date", () => {
+    const prices = Array.from({ length: 90 }, (_, index) => ({
+      timestamp: new Date(Date.UTC(2026, 4, 2 + index)).toISOString(),
+      nok: String(10 + index),
+    }));
+    const portfolio = { ...defaultIcpPortfolio, availableIcp: "6109.93", updatedAt: "2026-07-30T12:00:00.000Z" };
+    const series = calculateHistoricalValueSeries(
+      portfolio,
+      prices,
+      [
+        {
+          id: "purchase-1",
+          date: "2026-07-30",
+          amountIcp: "100",
+          type: "purchase",
+          createdAt: "2026-07-30T10:00:00.000Z",
+        },
+      ],
+      "25",
+      "2026-07-30T10:00:00.000Z",
+    );
 
-    expect(Number(projection[365].maturityIcp) - Number(projection[0].maturityIcp)).toBeGreaterThan(879.4);
+    expect(series).toHaveLength(90);
+    expect(series[89].date).toBe("2026-07-30");
+    expect(series[89].totalIcp).toBe("17163.47");
+    expect(series[89].totalValueNok).toBe("429086.75");
+    expect(Number(series[88].totalIcp)).toBeCloseTo(17063.47 - 879.4 / 365, 8);
+    expect(series[88].manualChangeIcp).toBe("0");
+    expect(series[89].manualChangeIcp).toBe("100");
   });
 });

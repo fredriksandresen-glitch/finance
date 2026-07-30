@@ -34,12 +34,21 @@ export type IcpPriceHistoryPoint = {
   nok: string;
 };
 
-export type IcpValueProjectionPoint = {
+export type IcpHoldingEvent = {
+  id: string;
   date: string;
-  day: number;
+  amountIcp: string;
+  type: "purchase" | "sale";
+  createdAt: string;
+};
+
+export type IcpHistoricalValuePoint = {
+  date: string;
+  priceNok: string;
   maturityIcp: string;
   totalIcp: string;
   totalValueNok: string;
+  manualChangeIcp: string;
 };
 
 export type RewardPeriod = "day" | "week" | "month" | "year";

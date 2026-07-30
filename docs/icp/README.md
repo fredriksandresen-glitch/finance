@@ -46,7 +46,9 @@ Automatisk wallet- og neuron-synkronisering er eksplisitt utsatt. Senere kan en 
 
 Den statisk eksporterte canisterversjonen bruker `IcpMarketService` i nettleseren. Tjenesten henter livepris og 90 dagers markedshistorikk direkte fra CoinGeckos offentlige API, alltid i NOK, og lagrer siste vellykkede historikk lokalt som fallback. Ingen API-nøkkel eksponeres i frontend.
 
-Verdigrafen er en 12-måneders prognose. Den fordeler valgt årsprognose på 365 dager og legger opptjent reward til maturity hver dag når auto-staking er aktivert. Med standard lineær wallet-prognose blir samlet tillegg etter 365 dager nøyaktig lik `walletAnnualForecastIcp`; ved valgt compounding øker dagsbeløpet etter den valgte modellen. NOK-verdien bruker dagens ICP-pris og er derfor ikke en prisprognose.
+Verdigrafen viser 90 historiske dagsverdier. Hvert punkt beregnes som totalt antall ICP den aktuelle dagen multiplisert med den faktiske CoinGecko-prisen i NOK den dagen. Tjenestelaget materialiserer opptjent maturity én gang per Oslo-kalenderdag. Når totalbeholdningen økes manuelt og lagres, opprettes en lokal kjøpshendelse med lagringsdatoen; reduksjoner registreres tilsvarende som salg. Hendelsene påvirker grafen fra og med hendelsesdatoen, aldri tidligere punkter.
+
+Første gang historikken opprettes finnes det ingen eldre kjøpshendelser. Appen antar derfor at dagens opprinnelige hovedbeholdning var eid gjennom hele 90-dagersperioden og trekker bare fra maturity som ennå ikke var opptjent. Fra aktiveringstidspunktet blir alle nye manuelle saldoendringer datert og historikken blir gradvis fullstendig. Hendelsesloggen ligger foreløpig i nettleserens `localStorage` og må flyttes til principal-avgrenset canisterlagring før fler-enhetssynkronisering aktiveres.
 
 ```bash
 COINGECKO_API_KEY=
