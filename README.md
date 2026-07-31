@@ -29,11 +29,12 @@ Kopier `.env.example` til `.env.local` ved lokal kjøring:
 NEXT_PUBLIC_ICP_CANISTER_ID=tymvd-6aaaa-aaaam-qjbza-cai
 NEXT_PUBLIC_ICP_NETWORK=local
 NEXT_PUBLIC_MARKET_API_BASE_URL=https://finance-hazel-theta-99.vercel.app
+FINNHUB_API_KEY=
 COINGECKO_API_KEY=
 COINGECKO_API_PLAN=demo
 ```
 
-Ikke legg private nøkler, seed phrases, controller-identiteter eller hemmeligheter i GitHub eller Vercel.
+`FINNHUB_API_KEY` er kun for Vercel-funksjonen og må aldri bruke `NEXT_PUBLIC_`-prefiks. Ikke legg private nøkler, seed phrases, controller-identiteter eller hemmeligheter i GitHub.
 
 ## Arkitektur
 
@@ -56,7 +57,7 @@ Når ICP kobles på, kan `MockPortfolioRepository` erstattes eller suppleres med
 ## Sider
 
 - Dashboard: nettoformue, endring siste måned/YTD, eiendeler, gjeld, inntekt, utgifter, grafer, største beholdninger og nylige registreringer.
-- Investeringer: manuell registrering samt live ICP- og BMNR-beholdning med kombinert 90-dagersgraf i NOK.
+- Investeringer: manuell registrering samt ICP, BMNR, SBET og MSTR med live/lagret status og kombinert 90-dagersgraf i NOK.
 - Inntekter og utgifter: manuelle poster med kategori, type, fast/variabel og gjentakende/enkeltstående.
 - Nettoformue: historisk utvikling med intervaller for 1 måned, 6 måneder, 1 år og hele perioden.
 - ICP: wallet, neuron-staking, daglig staket maturity, CoinGecko-livepris i NOK og historiske 90-dagersgrafer for pris og faktisk totalverdi.

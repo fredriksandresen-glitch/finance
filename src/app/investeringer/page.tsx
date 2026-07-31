@@ -5,19 +5,29 @@ import { PageHeader } from "@/components/ui/page-header";
 import { calculateHistoricalValueSeries, calculateTotalEstimatedHoldings } from "@/features/icp/calculations";
 import { combineAssetHistory } from "@/features/investments/investment-history";
 import { InvestmentWorkspace } from "@/features/investments/investment-workspace";
-import type { CombinedAssetHistoryPoint } from "@/features/investments/types";
+import type { CombinedAssetHistoryPoint, StockSymbol } from "@/features/investments/types";
 import { icpMarketService } from "@/lib/services/icp-market-service";
 import { icpPortfolioService } from "@/lib/services/icp-portfolio-service";
 import { investmentMarketService } from "@/lib/services/investment-market-service";
 import { portfolioService } from "@/lib/services/portfolio-service";
 import type { AssetWithMetrics } from "@/lib/types";
 
-const BMNR_QUANTITY = 700;
+const stockHoldings: Array<{
+  symbol: StockSymbol;
+  name: string;
+  quantity: number;
+  purchasePrice: number;
+}> = [
+  { symbol: "BMNR", name: "BitMine Immersion Technologies", quantity: 700, purchasePrice: 450 },
+  { symbol: "SBET", name: "SharpLink Gaming", quantity: 653, purchasePrice: 207 },
+  { symbol: "MSTR", name: "Strategy (MicroStrategy)", quantity: 9, purchasePrice: 3903 },
+];
 
 export default function InvestmentsPage() {
   const [assets, setAssets] = useState<AssetWithMetrics[]>([]);
   const [history, setHistory] = useState<CombinedAssetHistoryPoint[]>([]);
-  const [status, setStatus] = useState("Henter livepriser fra CoinGecko og Nasdaq ...");
+  const [status, setStatus] = useState("Henter priser fra CoinGecko, Finnhub og Nasdaq ...");
+  const [marketFreshness, setMarketFreshness] = useState<"loading" | "live" | "mixed" | "stale">("loading");
   const [refreshing, setRefreshing] = useState(true);
 
   const load = useCallback(async () => {
@@ -27,13 +37,31 @@ export default function InvestmentsPage() {
         icpPortfolioService.getPortfolio(),
         icpPortfolioService.getHoldingEvents(),
       ]);
-      const [icpPrice, icpPriceHistory, bmnr] = await Promise.all([
+      const [icpPrice, icpPriceHistory, market] = await Promise.all([
         icpMarketService.getCurrentPrice(),
         icpMarketService.getNokHistory(90),
-        investmentMarketService.getBmnrMarketData(),
+        investmentMarketService.getStockMarketData(),
       ]);
 
       const totalIcp = calculateTotalEstimatedHoldings(icpPortfolio).toNumber();
+      const stocksBySymbol = new Map(market.stocks.map((stock) => [stock.symbol, stock]));
+      const stockAssets = stockHoldings.flatMap((holding) => {
+        const stock = stocksBySymbol.get(holding.symbol);
+        if (!stock) return [];
+        return [
+          portfolioService.withMetrics({
+            id: `asset-${holding.symbol.toLowerCase()}-${stock.isLive ? "live" : "stale"}`,
+            name: holding.name,
+            symbol: holding.symbol,
+            category: "aksjer",
+            quantity: holding.quantity,
+            purchasePrice: holding.purchasePrice,
+            currentPrice: stock.priceNok,
+            currency: "NOK",
+            lastUpdated: stock.lastUpdatedAt.slice(0, 10),
+          }),
+        ];
+      });
       const featuredAssets = [
         portfolioService.withMetrics({
           id: "asset-icp-live",
@@ -46,17 +74,7 @@ export default function InvestmentsPage() {
           currency: "NOK",
           lastUpdated: icpPrice.lastUpdatedAt.slice(0, 10),
         }),
-        portfolioService.withMetrics({
-          id: "asset-bmnr-live",
-          name: "BitMine Immersion Technologies",
-          symbol: "BMNR",
-          category: "aksjer",
-          quantity: BMNR_QUANTITY,
-          purchasePrice: 450,
-          currentPrice: bmnr.priceNok,
-          currency: "NOK",
-          lastUpdated: bmnr.lastUpdatedAt.slice(0, 10),
-        }),
+        ...stockAssets,
       ];
       setAssets([...featuredAssets, ...portfolioService.getAssetMetrics(portfolio)]);
 
@@ -67,12 +85,23 @@ export default function InvestmentsPage() {
         icpPrice.nok,
         new Date(),
       );
-      setHistory(combineAssetHistory(icpHistory, bmnr.history, BMNR_QUANTITY));
-      setStatus(
-        `ICP: CoinGecko · BMNR: ${bmnr.source} · USD/NOK ${bmnr.usdNok.toLocaleString("nb-NO", { maximumFractionDigits: 4 })}`,
+      setHistory(
+        combineAssetHistory(
+          icpHistory,
+          stockHoldings.flatMap((holding) => {
+            const stock = stocksBySymbol.get(holding.symbol);
+            return stock ? [{ symbol: holding.symbol, quantity: holding.quantity, history: stock.history }] : [];
+          }),
+        ),
       );
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Markedsdata er midlertidig utilgjengelig.");
+      const liveCount = market.stocks.filter((stock) => stock.isLive).length;
+      setMarketFreshness(liveCount === market.stocks.length ? "live" : liveCount === 0 ? "stale" : "mixed");
+      setStatus(
+        `Aksjer: ${market.stocks.map((stock) => `${stock.symbol} ${stock.isLive ? stock.source : "lagret"}`).join(" · ")} · USD/NOK ${market.usdNok.toLocaleString("nb-NO", { maximumFractionDigits: 4 })}`,
+      );
+    } catch {
+      setMarketFreshness("stale");
+      setStatus("Kunne ikke hente markedsdata, og ingen lagrede priser er tilgjengelige ennå. Prøv igjen.");
     } finally {
       setRefreshing(false);
     }
@@ -85,7 +114,8 @@ export default function InvestmentsPage() {
 
   const refresh = useCallback(() => {
     setRefreshing(true);
-    setStatus("Henter livepriser fra CoinGecko og Nasdaq ...");
+    setMarketFreshness("loading");
+    setStatus("Henter priser fra CoinGecko, Finnhub og Nasdaq ...");
     void load();
   }, [load]);
 
@@ -99,6 +129,7 @@ export default function InvestmentsPage() {
         initialAssets={assets}
         combinedHistory={history}
         marketStatus={status}
+        marketFreshness={marketFreshness}
         refreshing={refreshing}
         onRefresh={refresh}
       />

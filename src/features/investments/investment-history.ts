@@ -1,29 +1,44 @@
 import type { IcpHistoricalValuePoint } from "@/features/icp/types";
-import type { CombinedAssetHistoryPoint, StockHistoryPoint } from "@/features/investments/types";
+import type { CombinedAssetHistoryPoint, StockHoldingHistory, StockSymbol } from "@/features/investments/types";
+
+type StockState = StockHoldingHistory & { index: number; latestPrice: number };
 
 export function combineAssetHistory(
   icpHistory: IcpHistoricalValuePoint[],
-  stockHistory: StockHistoryPoint[],
-  stockQuantity: number,
+  stockHoldings: StockHoldingHistory[],
 ): CombinedAssetHistoryPoint[] {
   if (icpHistory.length === 0) return [];
 
-  const sortedStockHistory = [...stockHistory].toSorted((a, b) => a.date.localeCompare(b.date));
-  let stockIndex = 0;
-  let latestStockPrice = sortedStockHistory[0]?.closeNok ?? 0;
+  const states = new Map<StockSymbol, StockState>(
+    stockHoldings.map((holding) => {
+      const history = [...holding.history].toSorted((a, b) => a.date.localeCompare(b.date));
+      return [holding.symbol, { ...holding, history, index: 0, latestPrice: history[0]?.closeNok ?? 0 }];
+    }),
+  );
 
   return icpHistory.map((point) => {
-    while (sortedStockHistory[stockIndex] && sortedStockHistory[stockIndex].date <= point.date) {
-      latestStockPrice = sortedStockHistory[stockIndex].closeNok;
-      stockIndex += 1;
+    for (const state of states.values()) {
+      while (state.history[state.index] && state.history[state.index].date <= point.date) {
+        state.latestPrice = state.history[state.index].closeNok;
+        state.index += 1;
+      }
     }
+
+    const stockValue = (symbol: StockSymbol) => {
+      const state = states.get(symbol);
+      return state ? state.latestPrice * state.quantity : 0;
+    };
     const icpValueNok = Number(point.totalValueNok);
-    const bmnrValueNok = latestStockPrice * stockQuantity;
+    const bmnrValueNok = stockValue("BMNR");
+    const sbetValueNok = stockValue("SBET");
+    const mstrValueNok = stockValue("MSTR");
     return {
       date: point.date,
       icpValueNok,
       bmnrValueNok,
-      totalValueNok: icpValueNok + bmnrValueNok,
+      sbetValueNok,
+      mstrValueNok,
+      totalValueNok: icpValueNok + bmnrValueNok + sbetValueNok + mstrValueNok,
     };
   });
 }

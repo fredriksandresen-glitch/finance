@@ -22,12 +22,14 @@ export function InvestmentWorkspace({
   initialAssets,
   combinedHistory,
   marketStatus,
+  marketFreshness,
   refreshing,
   onRefresh,
 }: {
   initialAssets: AssetWithMetrics[];
   combinedHistory: CombinedAssetHistoryPoint[];
   marketStatus: string;
+  marketFreshness: "loading" | "live" | "mixed" | "stale";
   refreshing: boolean;
   onRefresh: () => void;
 }) {
@@ -56,7 +58,13 @@ export function InvestmentWorkspace({
 
   return (
     <div className="grid gap-6">
-      <CombinedAssetsChart data={combinedHistory} status={marketStatus} refreshing={refreshing} onRefresh={onRefresh} />
+      <CombinedAssetsChart
+        data={combinedHistory}
+        status={marketStatus}
+        freshness={marketFreshness}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+      />
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card className="min-w-0 max-w-full overflow-hidden">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -66,7 +74,7 @@ export function InvestmentWorkspace({
                 Total verdi {formatCurrency(totals.value)} · gevinst/tap {formatCurrency(totals.gainLoss)}
               </p>
             </div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">ICP og BMNR oppdateres automatisk.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">ICP og aksjekurser oppdateres automatisk.</p>
           </div>
           <div className="max-w-full overflow-x-auto">
             <table className="w-full min-w-[920px] text-left text-sm">
@@ -93,6 +101,10 @@ export function InvestmentWorkspace({
                         {asset.id.endsWith("-live") ? (
                           <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-600 dark:text-emerald-300">
                             Live
+                          </span>
+                        ) : asset.id.endsWith("-stale") ? (
+                          <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300">
+                            Lagret
                           </span>
                         ) : null}
                       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card } from "@/components/ui/card";
 import type { CombinedAssetHistoryPoint } from "@/features/investments/types";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -9,11 +9,13 @@ import { formatCurrency, formatDate } from "@/lib/format";
 export function CombinedAssetsChart({
   data,
   status,
+  freshness,
   refreshing,
   onRefresh,
 }: {
   data: CombinedAssetHistoryPoint[];
   status: string;
+  freshness: "loading" | "live" | "mixed" | "stale";
   refreshing: boolean;
   onRefresh: () => void;
 }) {
@@ -23,7 +25,10 @@ export function CombinedAssetsChart({
     <Card>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">ICP + BMNR</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold">ICP + aksjer</h2>
+            <FreshnessBadge freshness={freshness} />
+          </div>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Kombinert markedsverdi i NOK · siste 90 dager</p>
         </div>
         <button
@@ -38,8 +43,16 @@ export function CombinedAssetsChart({
         </button>
       </div>
 
+      <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-xs text-zinc-500 dark:text-zinc-400">
+        <SeriesLabel color="#22c55e" label="Samlet" />
+        <SeriesLabel color="#06b6d4" label="ICP" />
+        <SeriesLabel color="#f59e0b" label="BMNR" />
+        <SeriesLabel color="#8b5cf6" label="SBET" />
+        <SeriesLabel color="#f43f5e" label="MSTR" />
+      </div>
+
       {data.length > 1 ? (
-        <div className="mt-6 h-80 min-w-0" data-testid="combined-assets-chart">
+        <div className="mt-3 h-80 min-w-0" data-testid="combined-assets-chart">
           <ResponsiveContainer>
             <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <defs>
@@ -70,7 +83,6 @@ export function CombinedAssetsChart({
                 formatter={(value, name) => [formatCurrency(Number(value)), String(name)]}
                 labelFormatter={(label) => formatDate(String(label))}
               />
-              <Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} />
               <Area
                 type="monotone"
                 dataKey="totalValueNok"
@@ -84,6 +96,22 @@ export function CombinedAssetsChart({
                 dataKey="icpValueNok"
                 name="ICP"
                 stroke="#06b6d4"
+                fill="transparent"
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="sbetValueNok"
+                name="SBET"
+                stroke="#8b5cf6"
+                fill="transparent"
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="mstrValueNok"
+                name="MSTR"
+                stroke="#f43f5e"
                 fill="transparent"
                 strokeWidth={2}
               />
@@ -104,13 +132,39 @@ export function CombinedAssetsChart({
         </div>
       )}
 
-      <div className="mt-5 grid gap-3 border-t border-black/10 pt-4 sm:grid-cols-3 dark:border-white/10">
+      <div className="mt-5 grid grid-cols-2 gap-3 border-t border-black/10 pt-4 lg:grid-cols-5 dark:border-white/10">
         <Metric label="ICP-verdi" value={latest ? formatCurrency(latest.icpValueNok) : "–"} />
         <Metric label="BMNR-verdi" value={latest ? formatCurrency(latest.bmnrValueNok) : "–"} />
+        <Metric label="SBET-verdi" value={latest ? formatCurrency(latest.sbetValueNok) : "–"} />
+        <Metric label="MSTR-verdi" value={latest ? formatCurrency(latest.mstrValueNok) : "–"} />
         <Metric label="Samlet verdi" value={latest ? formatCurrency(latest.totalValueNok) : "–"} emphasize />
       </div>
       <p className="mt-4 text-xs leading-5 text-zinc-500 dark:text-zinc-400">{status}</p>
     </Card>
+  );
+}
+
+function FreshnessBadge({ freshness }: { freshness: "loading" | "live" | "mixed" | "stale" }) {
+  const styles = {
+    loading: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
+    live: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    mixed: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    stale: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
+  };
+  const labels = { loading: "Oppdaterer", live: "Live", mixed: "Delvis lagret", stale: "Ikke live" };
+  return (
+    <span className={`rounded px-2 py-1 text-[10px] font-semibold uppercase ${styles[freshness]}`}>
+      {labels[freshness]}
+    </span>
+  );
+}
+
+function SeriesLabel({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
+      {label}
+    </span>
   );
 }
 
